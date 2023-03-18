@@ -12,7 +12,7 @@ import java.util.concurrent.TimeUnit;
 
 // AJAX посылает post, а браузер - get
 public class TNskDataServer extends DataServer {
-    public TNskAPI EMAPI = null;                       // API предметной области
+    public TNskAPI TNskAPI = null;                          // API предметной области
     public ErrorCounter deviceErrors = new ErrorCounter();  // Счетчик повторных ошибок
     protected boolean shutdown=false;                       // Признак завершения работы
     private OwnDateTime lastDay = new OwnDateTime(false);// Время для фиксации смены дня
@@ -55,11 +55,12 @@ public class TNskDataServer extends DataServer {
 
     @Override
     public void onStart() {
-        EMAPI = new TNskAPI(this);
+        TNskAPI = new TNskAPI(this);
         }
 
     @Override
     public void onShutdown() {
+        super.onShutdown();
         }
     }
 

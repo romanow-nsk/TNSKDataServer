@@ -88,7 +88,8 @@ public class TNskConsoleServer  {
             }
     }
     public static void main(String args[]) {
-        String ss[]= {"port:4571","init:"};
+        //String ss[]= {"port:4571","init:"};
+        String ss[]= {"port:4571"};
         if (args.length!=0)
             ss = args;
         TNskCommandStringData data = new TNskCommandStringData();

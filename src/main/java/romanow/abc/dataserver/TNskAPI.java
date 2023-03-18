@@ -1,11 +1,20 @@
 package romanow.abc.dataserver;
 
+import romanow.abc.core.ErrorList;
+import romanow.abc.core.UniException;
+import romanow.abc.core.entity.subjectarea.*;
+import romanow.abc.core.mongo.RequestStatistic;
+import romanow.abc.core.prepare.GorTransImport;
+import spark.Request;
+import spark.Response;
+
 public class TNskAPI extends APIBase {
     private TNskDataServer db;
 
     public TNskAPI(TNskDataServer db0) {
         super(db0);
         db = db0;
+        spark.Spark.get("/api/tnsk/import", apiGorTransImport);
         /*
         spark.Spark.post("/api/rating/group/add", apiAddGroupRating);
         spark.Spark.post("/api/rating/group/remove", apiRemoveGroupRating);
@@ -17,6 +26,68 @@ public class TNskAPI extends APIBase {
         spark.Spark.get("/api/report/group/table", apiCreateGroupReportTable);
          */
         }
+    public void saveDB(GorTransImport gorTrans,ErrorList log) {
+        try {
+            long oid=0;
+            db.mongoDB.clearTable(TStop.class.getSimpleName());
+            for(TStop stop : gorTrans.getStops()){
+                oid = db.mongoDB.add(stop);
+                stop.setOid(oid);
+                }
+            log.addInfo("Остановки сохранены: "+gorTrans.getStops().size());
+            db.mongoDB.clearTable(TSegment.class.getSimpleName());
+            int cnt1=0,cnt2=0, cnt3=0;
+            for(TSegment segment : gorTrans.getSegments()){
+                oid = db.mongoDB.add(segment);
+                segment.setOid(oid);
+                cnt3+=segment.getPoints().size();
+                for(TSegPoint point : segment.getPoints()){
+                    point.getTSegment().setOid(oid);
+                    db.mongoDB.add(point);
+                    }
+                }
+            log.addInfo("Сегменты сохранены: "+gorTrans.getSegments().size());
+            db.mongoDB.clearTable(TRoute.class.getSimpleName());
+            for(TRoute route : gorTrans.getRoutes()){
+                oid = db.mongoDB.add(route);
+                route.setOid(oid);
+                }
+            log.addInfo("Маршруты сохранены: "+gorTrans.getRoutes().size());
+            for(TRoute route : gorTrans.getRoutes()){
+                cnt1+=route.getSegments().size();
+                for(TRouteSegment segment : route.getSegments()){
+                    segment.getTRoute().setOid(route.getOid());
+                    segment.getSegment().setOidByRef();
+                    segment.getNear1().setOidByRef();
+                    segment.getNear2().setOidByRef();
+                    db.mongoDB.add(segment);
+                    }
+                cnt2+=route.getStops().size();
+                for(TRouteStop stop : route.getStops()){
+                    stop.getTRoute().setOid(route.getOid());
+                    stop.getStop().setOidByRef();
+                    stop.setDiff(stop.getStop().getRef().getDiff());    // Расстояние из этой остановки
+                    db.mongoDB.add(stop);
+                    }
+                }
+            log.addInfo("Обработано в маршрутах: сегментов "+cnt1+", точек "+cnt3+ ", остановок "+cnt2);
+        } catch (UniException ee) {
+                log.addError("Ошибка импорта в БД: "+ee.toString());
+                }
+        }
+    RouteWrap apiGorTransImport = new RouteWrap() {
+        @Override
+        public Object _handle(Request req, Response res, RequestStatistic statistic) throws Exception {
+            if (!db.users.isOnlyForSuperAdmin(req,res))
+                return null;
+            ErrorList errorList=new ErrorList();
+            GorTransImport gorTrans = new GorTransImport();
+            gorTrans.importData(errorList);
+            if (!errorList.valid())
+                return errorList;
+            saveDB(gorTrans,errorList);
+            return errorList;
+        }};
     /*
     RouteWrap apiStateChange = new RouteWrap() {
         @Override
