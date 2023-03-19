@@ -1,7 +1,9 @@
 package romanow.abc.dataserver;
 
+import lombok.Getter;
 import romanow.abc.core.ErrorList;
 import romanow.abc.core.UniException;
+import romanow.abc.core.entity.server.TServerData;
 import romanow.abc.core.entity.subjectarea.*;
 import romanow.abc.core.mongo.RequestStatistic;
 import romanow.abc.core.prepare.GorTransImport;
@@ -10,7 +12,7 @@ import spark.Response;
 
 public class TNskAPI extends APIBase {
     private TNskDataServer db;
-
+    @Getter private TServerData serverData = new TServerData();
     public TNskAPI(TNskDataServer db0) {
         super(db0);
         db = db0;
