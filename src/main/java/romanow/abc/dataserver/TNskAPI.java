@@ -3,20 +3,36 @@ package romanow.abc.dataserver;
 import lombok.Getter;
 import romanow.abc.core.ErrorList;
 import romanow.abc.core.UniException;
+import romanow.abc.core.entity.Entity;
+import romanow.abc.core.entity.EntityList;
+import romanow.abc.core.entity.EntityRefList;
+import romanow.abc.core.entity.WorkSettings;
+import romanow.abc.core.entity.baseentityes.JBoolean;
+import romanow.abc.core.entity.nskgortrans.GorTransAPIClient;
+import romanow.abc.core.entity.nskgortrans.GorTransCare;
+import romanow.abc.core.entity.nskgortrans.GorTransCareList;
+import romanow.abc.core.entity.nskgortrans.GorTransRoute;
+import romanow.abc.core.entity.server.TCare;
 import romanow.abc.core.entity.server.TServerData;
 import romanow.abc.core.entity.subjectarea.*;
 import romanow.abc.core.mongo.RequestStatistic;
 import romanow.abc.core.prepare.GorTransImport;
+import romanow.abc.core.utils.Pair;
 import spark.Request;
 import spark.Response;
 
+import java.util.HashMap;
+
 public class TNskAPI extends APIBase {
     private TNskDataServer db;
+    private GorTransAPIClient gorTransClient = new GorTransAPIClient();
     @Getter private TServerData serverData = new TServerData();
     public TNskAPI(TNskDataServer db0) {
         super(db0);
         db = db0;
         spark.Spark.get("/api/tnsk/import", apiGorTransImport);
+        spark.Spark.get("/api/tnsk/getscan", apiGetScanState);
+        spark.Spark.post("/api/tnsk/changescan", apiChangeScanState);
         /*
         spark.Spark.post("/api/rating/group/add", apiAddGroupRating);
         spark.Spark.post("/api/rating/group/remove", apiRemoveGroupRating);
@@ -28,6 +44,75 @@ public class TNskAPI extends APIBase {
         spark.Spark.get("/api/report/group/table", apiCreateGroupReportTable);
          */
         }
+    //--------------------------------------------------------------------------------------------------------
+    public void shutdown(){
+        loopThread.shutdown();
+        }
+    @Getter private LoopThread loopThread = new LoopThread("Опрос бортов", new I_LoopBack() {
+        @Override
+        public boolean onException(String ss, Exception ee) {
+            System.out.println(loopThread.getName()+": "+ss+" "+ee.toString());
+            return false;
+        }
+        @Override
+        public void onFinish(String ss) {
+            System.out.println(loopThread.getName()+": завершение работы");
+        }
+        @Override
+        public void run() {
+            scanCares();
+            }
+        });
+    public void scanCares(){
+        int cnt=0;
+        long tt = System.currentTimeMillis();
+        int hours = ((WorkSettings)db.common.getWorkSettings()).getCareStoryHours();
+        for (TRoute route : serverData.getRoutes()){
+            String routeName = route.getRouteName();
+            int type = route.getTType();
+            Pair<String, GorTransCareList> cares=gorTransClient.getCareList(type,routeName);
+            if (cares.o1!=null)
+                System.out.println("Ошибка сканирования бортов маршрута "+type+":"+routeName+" "+cares.o1);
+            else{
+                //System.out.println(cares.o2);
+                cnt+=cares.o2.getMarkers().size();
+                for (GorTransCare care : cares.o2.getMarkers()){
+                    TCare tCare = new TCare(true,type,routeName,care);
+                    serverData.getCareStoryes().put(hours,tCare);
+                    }
+                }
+            }
+        System.out.println("Обработано "+cnt+" бортов, время опроса "+(System.currentTimeMillis()-tt)/1000+" с");
+        }
+    //------------------------------------------------------------------------------------------------------------
+    public ErrorList scanOnOff(){
+        ErrorList out = new ErrorList();
+        if (serverData.isCareScanOn()){
+            loopThread.shutdown();
+            serverData.setCareScanOn(false);
+            out.addInfo("Сканирование бортов выключено");
+            }
+        else{
+            try {
+                EntityList<Entity> list = db.mongoDB.getAll(new TRoute());
+                EntityRefList routes = serverData.getRoutes();
+                routes.clear();
+                for(Entity entity : list){
+                    TRoute route = (TRoute)entity;
+                    routes.add(route);
+                    }
+                out.addInfo("Загружено "+list.size()+" маршрутов");
+                routes.createMap();
+                loopThread.start(((WorkSettings)db.common.getWorkSettings()).getCareScanPeriod());
+                serverData.setCareScanOn(true);
+                out.addInfo("Сканирование бортов включено");
+                } catch (UniException e) {
+                    out.addError("Ошибка чтения маршрутов: "+e.toString());
+                    }
+            }
+        return out;
+        }
+    //------------------------------------------------------------------------------------------------------------
     public void saveDB(GorTransImport gorTrans,ErrorList log) {
         try {
             long oid=0;
@@ -89,6 +174,20 @@ public class TNskAPI extends APIBase {
                 return errorList;
             saveDB(gorTrans,errorList);
             return errorList;
+        }};
+    RouteWrap apiChangeScanState = new RouteWrap() {
+        @Override
+        public Object _handle(Request req, Response res, RequestStatistic statistic) throws Exception {
+            if (!db.users.isOnlyForSuperAdmin(req,res))
+                return null;
+            return scanOnOff();
+        }};
+    RouteWrap apiGetScanState = new RouteWrap() {
+        @Override
+        public Object _handle(Request req, Response res, RequestStatistic statistic) throws Exception {
+            if (!db.users.isOnlyForSuperAdmin(req,res))
+                return null;
+            return new JBoolean(serverData.isCareScanOn());
         }};
     /*
     RouteWrap apiStateChange = new RouteWrap() {

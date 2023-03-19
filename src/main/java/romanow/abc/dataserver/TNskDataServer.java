@@ -1,5 +1,6 @@
 package romanow.abc.dataserver;
 
+import lombok.Getter;
 import romanow.abc.core.constants.ValuesBase;
 import romanow.abc.core.entity.WorkSettings;
 import romanow.abc.core.utils.OwnDateTime;
@@ -12,7 +13,7 @@ import java.util.concurrent.TimeUnit;
 
 // AJAX посылает post, а браузер - get
 public class TNskDataServer extends DataServer {
-    public TNskAPI TNskAPI = null;                          // API предметной области
+    public TNskAPI nskAPI = null;                          // API предметной области
     public ErrorCounter deviceErrors = new ErrorCounter();  // Счетчик повторных ошибок
     protected boolean shutdown=false;                       // Признак завершения работы
     private OwnDateTime lastDay = new OwnDateTime(false);// Время для фиксации смены дня
@@ -39,28 +40,26 @@ public class TNskDataServer extends DataServer {
     public void onDeviceSuccess(){
         ErrorCounter rez =deviceErrors.onSuccess();
         }
-    public static void main(String argv[]){
-        new TNskDataServer();
-        }
     //-----------------------------------------------------------------------------------------------------------------
     @Override
     public long createEvent(int type, int level, String title, String comment, long artId) {
         return 0;
         }
-
     @Override
     public void onClock() {
         WorkSettings ws = (WorkSettings) common.getWorkSettings();
         }
-
     @Override
     public void onStart() {
-        TNskAPI = new TNskAPI(this);
+        nskAPI = new TNskAPI(this);
         }
-
     @Override
     public void onShutdown() {
         super.onShutdown();
+        nskAPI.shutdown();
         }
+    public static void main(String argv[]){
+        new TNskDataServer();
+    }
     }
 
