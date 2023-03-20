@@ -3,6 +3,7 @@ package romanow.abc.dataserver;
 import lombok.Getter;
 import romanow.abc.core.ErrorList;
 import romanow.abc.core.UniException;
+import romanow.abc.core.constants.ValuesBase;
 import romanow.abc.core.entity.Entity;
 import romanow.abc.core.entity.EntityList;
 import romanow.abc.core.entity.EntityRefList;
@@ -94,18 +95,85 @@ public class TNskAPI extends APIBase {
             }
         else{
             try {
-                EntityList<Entity> list = db.mongoDB.getAll(new TRoute());
-                EntityRefList routes = serverData.getRoutes();
+                long tt=System.currentTimeMillis();
+                long tt0=tt;
+                EntityList<Entity> list = db.mongoDB.getAll(new TRoute(), ValuesBase.GetAllModeActual,1);
+                EntityRefList<TRoute> routes = serverData.getRoutes();
                 routes.clear();
                 for(Entity entity : list){
                     TRoute route = (TRoute)entity;
                     routes.add(route);
                     }
-                out.addInfo("Загружено "+list.size()+" маршрутов");
                 routes.createMap();
+                long tt1= System.currentTimeMillis();
+                out.addInfo("Загружено "+list.size()+" маршрутов, время="+(tt1-tt)+" мс");
+                tt=tt1;
+                list = db.mongoDB.getAll(new TSegment(), ValuesBase.GetAllModeActual,0);
+                EntityRefList<TSegment> segments = serverData.getSegments();
+                segments.clear();
+                for(Entity entity : list){
+                    TSegment segment = (TSegment) entity;
+                    segments.add(segment);
+                    }
+                segments.createMap();
+                tt1= System.currentTimeMillis();
+                out.addInfo("Загружено "+list.size()+" сегментов, время="+(tt1-tt)+" мс");
+                tt=tt1;
+                long oid=0;
+                list = db.mongoDB.getAll(new TSegPoint(), ValuesBase.GetAllModeActual,0);
+                for(Entity entity : list){
+                    TSegPoint point = (TSegPoint) entity;
+                    oid = point.getTSegment().getOid();
+                    TSegment tSegment = segments.getByNumber(oid);
+                    if (tSegment==null)
+                        out.addError("Не найден сегмент oid="+oid+" для точки "+point.getGps().toString());
+                    else
+                        tSegment.getPoints().add(point);
+                    }
+                tt1= System.currentTimeMillis();
+                out.addInfo("Загружено и связано "+list.size()+" точек, время="+(tt1-tt)+" мс");
+                tt=tt1;
+                list = db.mongoDB.getAll(new TStop(), ValuesBase.GetAllModeActual,0);
+                EntityRefList<TStop> stops = serverData.getStops();
+                stops.clear();
+                for(Entity entity : list){
+                    TStop stop = (TStop) entity;
+                    stops.add(stop);
+                    }
+                stops.createMap();
+                tt1= System.currentTimeMillis();
+                out.addInfo("Загружено "+list.size()+" остановок, время="+(tt1-tt)+" мс");
+                tt=tt1;
+                int cnt=0, cnt2=0;
+                int errors=0;
+                for(TRoute route : routes){
+                    cnt+=route.getSegments().size();
+                    cnt2+=route.getStops().size();
+                    for(TRouteSegment routeSegment : route.getSegments()){ // Настройка ссылок на сегменты
+                        oid = routeSegment.getSegment().getOid();
+                        TSegment sg = segments.getByNumber(oid);
+                        if (sg==null)
+                            out.addError("Не найден сегмент oid="+oid+" для маршрута "+route.getRouteKey());
+                        else
+                            routeSegment.getSegment().setOidRef(sg);
+                        }
+                    for(TRouteStop routeStop : route.getStops()){   // Настройка ссылок на сегменты
+                        oid = routeStop.getStop().getOid();
+                        TStop sg = stops.getByNumber(oid);
+                        if (sg==null){
+                            //errors++;
+                            out.addError("Не найдена остановка oid="+oid+" для маршрута "+route.getRouteKey());
+                            }
+                        else
+                            routeStop.getStop().setOidRef(sg);
+                        }
+                    }
+                tt1= System.currentTimeMillis();
+                out.addInfo("Связано "+cnt2+" остановок и "+cnt+" сегментов в маршрутах, время="+(tt1-tt)+" мс");
+                tt=tt1;
                 loopThread.start(((WorkSettings)db.common.getWorkSettings()).getCareScanPeriod());
                 serverData.setCareScanOn(true);
-                out.addInfo("Сканирование бортов включено");
+                out.addInfo("Сканирование бортов включено, время="+(tt1-tt0)+" мс");
                 } catch (UniException e) {
                     out.addError("Ошибка чтения маршрутов: "+e.toString());
                     }
@@ -140,6 +208,8 @@ public class TNskAPI extends APIBase {
                 route.setOid(oid);
                 }
             log.addInfo("Маршруты сохранены: "+gorTrans.getRoutes().size());
+            db.mongoDB.clearTable(TRouteSegment.class.getSimpleName());
+            db.mongoDB.clearTable(TRouteStop.class.getSimpleName());
             for(TRoute route : gorTrans.getRoutes()){
                 cnt1+=route.getSegments().size();
                 for(TRouteSegment segment : route.getSegments()){
@@ -153,7 +223,6 @@ public class TNskAPI extends APIBase {
                 for(TRouteStop stop : route.getStops()){
                     stop.getTRoute().setOid(route.getOid());
                     stop.getStop().setOidByRef();
-                    stop.setDiff(stop.getStop().getRef().getDiff());    // Расстояние из этой остановки
                     db.mongoDB.add(stop);
                     }
                 }
