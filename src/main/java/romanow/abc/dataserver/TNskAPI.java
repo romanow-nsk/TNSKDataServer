@@ -12,7 +12,6 @@ import romanow.abc.core.entity.baseentityes.JBoolean;
 import romanow.abc.core.entity.nskgortrans.GorTransAPIClient;
 import romanow.abc.core.entity.nskgortrans.GorTransCare;
 import romanow.abc.core.entity.nskgortrans.GorTransCareList;
-import romanow.abc.core.entity.nskgortrans.GorTransRoute;
 import romanow.abc.core.entity.server.TCare;
 import romanow.abc.core.entity.server.TServerData;
 import romanow.abc.core.entity.subjectarea.*;
@@ -34,6 +33,7 @@ public class TNskAPI extends APIBase {
         spark.Spark.get("/api/tnsk/import", apiGorTransImport);
         spark.Spark.get("/api/tnsk/getscan", apiGetScanState);
         spark.Spark.post("/api/tnsk/changescan", apiChangeScanState);
+        spark.Spark.get("/api/tnsk/roads", apiGetRoads);
         /*
         spark.Spark.post("/api/rating/group/add", apiAddGroupRating);
         spark.Spark.post("/api/rating/group/remove", apiRemoveGroupRating);
@@ -116,11 +116,10 @@ public class TNskAPI extends APIBase {
                     segments.add(segment);
                     }
                 segments.createMap();
+                long oid;
                 tt1= System.currentTimeMillis();
                 out.addInfo("Загружено "+list.size()+" сегментов, время="+(tt1-tt)+" мс");
                 tt=tt1;
-                long oid=0;
-                /*
                 list = db.mongoDB.getAll(new TSegPoint(), ValuesBase.GetAllModeActual,0);
                 for(Entity entity : list){
                     TSegPoint point = (TSegPoint) entity;
@@ -133,7 +132,6 @@ public class TNskAPI extends APIBase {
                     }
                 tt1= System.currentTimeMillis();
                 out.addInfo("Загружено и связано "+list.size()+" точек, время="+(tt1-tt)+" мс");
-                 */
                 tt=tt1;
                 list = db.mongoDB.getAll(new TStop(), ValuesBase.GetAllModeActual,0);
                 EntityRefList<TStop> stops = serverData.getStops();
@@ -260,6 +258,15 @@ public class TNskAPI extends APIBase {
             if (!db.users.isOnlyForSuperAdmin(req,res))
                 return null;
             return new JBoolean(serverData.isCareScanOn());
+        }};
+    RouteWrap apiGetRoads = new RouteWrap() {
+        @Override
+        public Object _handle(Request req, Response res, RequestStatistic statistic) throws Exception {
+            if (!serverData.isCareScanOn()){
+                db.createHTTPError(res, ValuesBase.HTTPRequestError, "Сканировавание ДО выключено");
+                return null;
+                }
+            return serverData.getSegments();
         }};
     /*
     RouteWrap apiStateChange = new RouteWrap() {
