@@ -120,6 +120,7 @@ public class TNskAPI extends APIBase {
                 out.addInfo("Загружено "+list.size()+" сегментов, время="+(tt1-tt)+" мс");
                 tt=tt1;
                 long oid=0;
+                /*
                 list = db.mongoDB.getAll(new TSegPoint(), ValuesBase.GetAllModeActual,0);
                 for(Entity entity : list){
                     TSegPoint point = (TSegPoint) entity;
@@ -132,6 +133,7 @@ public class TNskAPI extends APIBase {
                     }
                 tt1= System.currentTimeMillis();
                 out.addInfo("Загружено и связано "+list.size()+" точек, время="+(tt1-tt)+" мс");
+                 */
                 tt=tt1;
                 list = db.mongoDB.getAll(new TStop(), ValuesBase.GetAllModeActual,0);
                 EntityRefList<TStop> stops = serverData.getStops();
@@ -238,6 +240,7 @@ public class TNskAPI extends APIBase {
                 return null;
             ErrorList errorList=new ErrorList();
             GorTransImport gorTrans = new GorTransImport();
+            gorTrans.setTraceLevel(((WorkSettings)db.common.getWorkSettings()).getTraceLevel());
             gorTrans.importData(errorList);
             if (!errorList.valid())
                 return errorList;
