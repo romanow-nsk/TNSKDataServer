@@ -3,6 +3,8 @@ package romanow.abc.dataserver;
 import lombok.Getter;
 import romanow.abc.core.ErrorList;
 import romanow.abc.core.UniException;
+import romanow.abc.core.constants.ConstValue;
+import romanow.abc.core.constants.Values;
 import romanow.abc.core.constants.ValuesBase;
 import romanow.abc.core.entity.Entity;
 import romanow.abc.core.entity.EntityList;
@@ -16,6 +18,7 @@ import romanow.abc.core.entity.server.TCare;
 import romanow.abc.core.entity.server.TServerData;
 import romanow.abc.core.entity.subjectarea.*;
 import romanow.abc.core.mongo.RequestStatistic;
+import romanow.abc.core.prepare.Distantion;
 import romanow.abc.core.prepare.GorTransImport;
 import romanow.abc.core.utils.Pair;
 import spark.Request;
@@ -27,9 +30,11 @@ public class TNskAPI extends APIBase {
     private TNskDataServer db;
     private GorTransAPIClient gorTransClient = new GorTransAPIClient();
     @Getter private TServerData serverData = new TServerData();
+    private HashMap<Integer, ConstValue> typeMap = new HashMap<>();
     public TNskAPI(TNskDataServer db0) {
         super(db0);
         db = db0;
+        typeMap = Values.constMap().getGroupMapByValue("RouteType");
         spark.Spark.get("/api/tnsk/import", apiGorTransImport);
         spark.Spark.get("/api/tnsk/getscan", apiGetScanState);
         spark.Spark.post("/api/tnsk/changescan", apiChangeScanState);
@@ -66,6 +71,7 @@ public class TNskAPI extends APIBase {
         });
     public void scanCares(){
         int cnt=0;
+        ErrorList errors = new ErrorList();
         long tt = System.currentTimeMillis();
         int hours = ((WorkSettings)db.common.getWorkSettings()).getCareStoryHours();
         for (TRoute route : serverData.getRoutes()){
@@ -79,10 +85,12 @@ public class TNskAPI extends APIBase {
                 cnt+=cares.o2.getMarkers().size();
                 for (GorTransCare care : cares.o2.getMarkers()){
                     TCare tCare = new TCare(true,type,routeName,care);
+                    route.createRoutePoint(tCare,errors,typeMap);
                     serverData.getCareStoryes().put(hours,tCare);
                     }
                 }
             }
+        System.out.println(errors);
         System.out.println("Обработано "+cnt+" бортов, время опроса "+(System.currentTimeMillis()-tt)/1000+" с");
         }
     //------------------------------------------------------------------------------------------------------------
@@ -174,6 +182,7 @@ public class TNskAPI extends APIBase {
                 loopThread.start(((WorkSettings)db.common.getWorkSettings()).getCareScanPeriod());
                 serverData.setCareScanOn(true);
                 out.addInfo("Сканирование бортов включено, время="+(tt1-tt0)+" мс");
+                scanCares();
                 } catch (UniException e) {
                     out.addError("Ошибка чтения маршрутов: "+e.toString());
                     }
