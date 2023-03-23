@@ -1,6 +1,7 @@
 package romanow.abc.dataserver;
 
 import lombok.Getter;
+import retrofit2.http.GET;
 import romanow.abc.core.ErrorList;
 import romanow.abc.core.UniException;
 import romanow.abc.core.constants.ConstValue;
@@ -18,8 +19,8 @@ import romanow.abc.core.entity.server.TCare;
 import romanow.abc.core.entity.server.TServerData;
 import romanow.abc.core.entity.subjectarea.*;
 import romanow.abc.core.mongo.RequestStatistic;
-import romanow.abc.core.prepare.Distantion;
 import romanow.abc.core.prepare.GorTransImport;
+import romanow.abc.core.utils.GPSPoint;
 import romanow.abc.core.utils.Pair;
 import spark.Request;
 import spark.Response;
@@ -39,16 +40,8 @@ public class TNskAPI extends APIBase {
         spark.Spark.get("/api/tnsk/getscan", apiGetScanState);
         spark.Spark.post("/api/tnsk/changescan", apiChangeScanState);
         spark.Spark.get("/api/tnsk/roads", apiGetRoads);
-        /*
-        spark.Spark.post("/api/rating/group/add", apiAddGroupRating);
-        spark.Spark.post("/api/rating/group/remove", apiRemoveGroupRating);
-        spark.Spark.get("/api/rating/group/get", apiGetGroupRatings);
-        spark.Spark.get("/api/rating/taking/get", apiGetTakingRatings);
-        spark.Spark.post("/api/state/change",apiStateChange);
-        spark.Spark.post("/api/rating/takingforall", apiSetTakingForAll);
-        spark.Spark.get("/api/report/group/artifact", apiCreateGroupReportArtifact);
-        spark.Spark.get("/api/report/group/table", apiCreateGroupReportTable);
-         */
+        spark.Spark.post("/api/tnsk/cares/nearest",apiNearestCares);
+        spark.Spark.get("/api/tnsk/cares/actual",apiActualCares);
         }
     //--------------------------------------------------------------------------------------------------------
     public void shutdown(){
@@ -74,8 +67,10 @@ public class TNskAPI extends APIBase {
         ErrorList errors = new ErrorList();
         long tt = System.currentTimeMillis();
         int hours = ((WorkSettings)db.common.getWorkSettings()).getCareStoryHours();
+        EntityRefList<TCare> actualCares = new EntityRefList<>();
         for (TRoute route : serverData.getRoutes()){
             String routeName = route.getRouteName();
+            EntityRefList<TCare> routeActualCares = new EntityRefList<>();
             int type = route.getTType();
             Pair<String, GorTransCareList> cares=gorTransClient.getCareList(type,routeName);
             if (cares.o1!=null)
@@ -86,12 +81,16 @@ public class TNskAPI extends APIBase {
                 for (GorTransCare care : cares.o2.getMarkers()){
                     TCare tCare = new TCare(true,type,routeName,care);
                     route.createRoutePoint(tCare,errors,typeMap);
+                    actualCares.add(tCare);
+                    routeActualCares.add(tCare);
                     serverData.getCareStoryes().put(hours,tCare);
                     }
                 }
+            route.setActualCares(routeActualCares);
             }
         System.out.println(errors);
         System.out.println("Обработано "+cnt+" бортов, время опроса "+(System.currentTimeMillis()-tt)/1000+" с");
+        serverData.setActualCares(actualCares);
         }
     //------------------------------------------------------------------------------------------------------------
     public ErrorList scanOnOff(){
@@ -164,7 +163,27 @@ public class TNskAPI extends APIBase {
                             out.addError("Не найден сегмент oid="+oid+" для маршрута "+route.getRouteKey());
                         else
                             routeSegment.getSegment().setOidRef(sg);
-                        }
+                        oid = routeSegment.getNear1().getOid();
+                        if (oid!=0){
+                            sg = segments.getByNumber(oid);
+                            if (sg==null)
+                                out.addError("Не найден сегмент oid="+oid+" для маршрута "+route.getRouteKey());
+                            else{
+                                routeSegment.getNear1().setOidRef(sg);
+                                cnt2++;
+                                }
+                            }
+                        oid = routeSegment.getNear2().getOid();
+                        if (oid!=0){
+                            sg = segments.getByNumber(oid);
+                            if (sg==null)
+                                out.addError("Не найден сегмент oid="+oid+" для маршрута "+route.getRouteKey());
+                            else {
+                                routeSegment.getNear2().setOidRef(sg);
+                                cnt2++;
+                                }
+                            }
+                       }
                     for(TRouteStop routeStop : route.getStops()){   // Настройка ссылок на сегменты
                         oid = routeStop.getStop().getOid();
                         TStop sg = stops.getByNumber(oid);
@@ -277,6 +296,41 @@ public class TNskAPI extends APIBase {
                 }
             return serverData.getSegments();
         }};
+    RouteWrap apiActualCares = new RouteWrap() {
+        @Override
+        public Object _handle(Request req, Response res, RequestStatistic statistic) throws Exception {
+            if (!serverData.isCareScanOn()){
+                db.createHTTPError(res, ValuesBase.HTTPRequestError, "Сканировавание ДО выключено");
+                return null;
+                }
+            ParamString keyName = new ParamString(req,res,"route");
+            if (!keyName.isValid())
+                return null;
+            if (keyName.getValue().length()==0)
+                return serverData.getActualCares();
+            TRoute route= serverData.getRoutes().getByName(keyName.getValue());
+            if (route==null){
+                db.createHTTPError(res, ValuesBase.HTTPRequestError, "Не найден маршрут "+keyName);
+                return null;
+                }
+            return route.getActualCares();
+            }};
+    RouteWrap apiNearestCares = new RouteWrap() {
+        @Override
+        public Object _handle(Request req, Response res, RequestStatistic statistic) throws Exception {
+            if (!serverData.isCareScanOn()){
+                db.createHTTPError(res, ValuesBase.HTTPRequestError, "Сканировавание ДО выключено");
+                return null;
+                }
+            ParamBody dbReq = new ParamBody(req, res, GPSPoint.class);
+            if (!dbReq.isValid()) return null;
+            ParamInt dist = new ParamInt(req,res,"distance");
+            if (!dist.isValid())
+                return null;
+            return serverData.getNearestCares((GPSPoint) dbReq.getValue(), dist.getValue());
+        }};
+
+
     /*
     RouteWrap apiStateChange = new RouteWrap() {
         @Override
