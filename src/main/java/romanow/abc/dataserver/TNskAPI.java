@@ -66,6 +66,7 @@ public class TNskAPI extends APIBase {
         });
     public void scanCares(){
         int cnt=0;
+        int cntRep=0;
         ErrorList errors = new ErrorList();
         long tt = System.currentTimeMillis();
         int hours = ((WorkSettings)db.common.getWorkSettings()).getCareStoryHours();
@@ -86,13 +87,13 @@ public class TNskAPI extends APIBase {
                     tCare.lastPoint().setRoutePoint(distantion);
                     actualCares.add(tCare);
                     routeActualCares.add(tCare);
-                    serverData.getCareStoryes().put(hours,tCare);
+                    cntRep += serverData.getCareStoryes().put(hours,tCare);
                     }
                 }
             route.setActualCares(routeActualCares);
             }
         System.out.println(errors);
-        System.out.println("Обработано "+cnt+" бортов, время опроса "+(System.currentTimeMillis()-tt)/1000+" с");
+        System.out.println("Обработано "+cnt+" бортов, повторно "+cntRep+", время опроса "+(System.currentTimeMillis()-tt)/1000+" с");
         serverData.setActualCares(actualCares);
         }
     //------------------------------------------------------------------------------------------------------------
