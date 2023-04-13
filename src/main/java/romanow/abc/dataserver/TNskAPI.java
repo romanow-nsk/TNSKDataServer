@@ -19,6 +19,7 @@ import romanow.abc.core.entity.server.TCare;
 import romanow.abc.core.entity.server.TServerData;
 import romanow.abc.core.entity.subjectarea.*;
 import romanow.abc.core.mongo.RequestStatistic;
+import romanow.abc.core.prepare.Distantion;
 import romanow.abc.core.prepare.GorTransImport;
 import romanow.abc.core.utils.GPSPoint;
 import romanow.abc.core.utils.Pair;
@@ -42,6 +43,7 @@ public class TNskAPI extends APIBase {
         spark.Spark.get("/api/tnsk/roads", apiGetRoads);
         spark.Spark.post("/api/tnsk/cares/nearest",apiNearestCares);
         spark.Spark.get("/api/tnsk/cares/actual",apiActualCares);
+        spark.Spark.get("/api/tnsk/care/story",apiGetCareStory);
         }
     //--------------------------------------------------------------------------------------------------------
     public void shutdown(){
@@ -80,7 +82,8 @@ public class TNskAPI extends APIBase {
                 cnt+=cares.o2.getMarkers().size();
                 for (GorTransCare care : cares.o2.getMarkers()){
                     TCare tCare = new TCare(true,type,routeName,care);
-                    route.createRoutePoint(tCare,errors,typeMap);
+                    Distantion distantion = route.createRoutePoint(tCare,errors,typeMap);
+                    tCare.lastPoint().setRoutePoint(distantion);
                     actualCares.add(tCare);
                     routeActualCares.add(tCare);
                     serverData.getCareStoryes().put(hours,tCare);
@@ -314,6 +317,23 @@ public class TNskAPI extends APIBase {
                 return null;
                 }
             return route.getActualCares();
+            }};
+    RouteWrap apiGetCareStory = new RouteWrap() {
+        @Override
+        public Object _handle(Request req, Response res, RequestStatistic statistic) throws Exception {
+            if (!serverData.isCareScanOn()){
+                db.createHTTPError(res, ValuesBase.HTTPRequestError, "Сканировавание ДО выключено");
+                return null;
+                }
+            ParamString keyName = new ParamString(req,res,"carekey");
+            if (!keyName.isValid())
+                return null;
+            TCare care = serverData.getCareStoryes().get(keyName.getValue());
+            if (care==null){
+                db.createHTTPError(res, ValuesBase.HTTPRequestError, "Не найден борт "+keyName);
+                return null;
+                }
+            return care;
             }};
     RouteWrap apiNearestCares = new RouteWrap() {
         @Override
