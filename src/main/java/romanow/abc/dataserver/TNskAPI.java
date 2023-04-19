@@ -21,11 +21,13 @@ import romanow.abc.core.entity.subjectarea.*;
 import romanow.abc.core.mongo.RequestStatistic;
 import romanow.abc.core.prepare.Distantion;
 import romanow.abc.core.prepare.GorTransImport;
+import romanow.abc.core.prepare.WeekCellList;
 import romanow.abc.core.utils.GPSPoint;
 import romanow.abc.core.utils.Pair;
 import spark.Request;
 import spark.Response;
 
+import java.io.IOException;
 import java.util.HashMap;
 
 public class TNskAPI extends APIBase {
@@ -44,9 +46,30 @@ public class TNskAPI extends APIBase {
         spark.Spark.post("/api/tnsk/cares/nearest",apiNearestCares);
         spark.Spark.get("/api/tnsk/cares/actual",apiActualCares);
         spark.Spark.get("/api/tnsk/care/story",apiGetCareStory);
+        spark.Spark.get("/api/tnsk/segment/statistic",apiGetSegmentStatistic);
         }
     //--------------------------------------------------------------------------------------------------------
+    public void updateStatistic(){
+        for(TSegment segment : serverData.getSegments()) {
+            try {
+                segment.zip();
+                db.mongoDB.update(segment);
+                } catch (Exception e) {
+                    System.out.println("Ошибка сжатия/сохранения статистики, сегмент id=" + segment.getOid() + ": " + e.toString());
+                    }
+            }
+        }
+    public void restoreStatistic(){
+        for(TSegment segment : serverData.getSegments()) {
+            try {
+                segment.unzip();
+                } catch (Exception e) {
+                    System.out.println("Ошибка разархивирования статистики, сегмент id=" + segment.getOid() + ": " + e.toString());
+                    }
+                }
+        }
     public void shutdown(){
+        updateStatistic();
         loopThread.shutdown();
         }
     @Getter private LoopThread loopThread = new LoopThread("Опрос бортов", new I_LoopBack() {
@@ -87,19 +110,28 @@ public class TNskAPI extends APIBase {
                     tCare.lastPoint().setRoutePoint(distantion);
                     actualCares.add(tCare);
                     routeActualCares.add(tCare);
+                    if (distantion.done)
+                        distantion.getSegment().addSpeedStatistic(tCare);           // Добавить статистику к сегменту
                     cntRep += serverData.getCareStoryes().put(hours,tCare);
                     }
                 }
             route.setActualCares(routeActualCares);
             }
+        int cntCells=0;
+        int totalCount=0;
+        for(TSegment segment : serverData.getSegments()){
+            cntCells += segment.getNotNullCells();
+            totalCount += segment.getTotalCounts();
+            }
         System.out.println(errors);
-        System.out.println("Обработано "+cnt+" бортов, повторно "+cntRep+", время опроса "+(System.currentTimeMillis()-tt)/1000+" с");
+        System.out.println("Обработано "+cnt+" бортов, повторно "+cntRep+", ячеек статистики "+cntCells+", значений "+totalCount+", время опроса "+(System.currentTimeMillis()-tt)/1000+" с");
         serverData.setActualCares(actualCares);
         }
     //------------------------------------------------------------------------------------------------------------
     public ErrorList scanOnOff(){
         ErrorList out = new ErrorList();
         if (serverData.isCareScanOn()){
+            updateStatistic();
             loopThread.shutdown();
             serverData.setCareScanOn(false);
             out.addInfo("Сканирование бортов выключено");
@@ -201,6 +233,7 @@ public class TNskAPI extends APIBase {
                     }
                 tt1= System.currentTimeMillis();
                 out.addInfo("Связано "+cnt2+" остановок и "+cnt+" сегментов в маршрутах, время="+(tt1-tt)+" мс");
+                restoreStatistic();
                 tt=tt1;
                 loopThread.start(((WorkSettings)db.common.getWorkSettings()).getCareScanPeriod());
                 serverData.setCareScanOn(true);
@@ -287,9 +320,20 @@ public class TNskAPI extends APIBase {
     RouteWrap apiGetScanState = new RouteWrap() {
         @Override
         public Object _handle(Request req, Response res, RequestStatistic statistic) throws Exception {
-            if (!db.users.isOnlyForSuperAdmin(req,res))
-                return null;
             return new JBoolean(serverData.isCareScanOn());
+        }};
+    RouteWrap apiGetSegmentStatistic = new RouteWrap() {
+        @Override
+        public Object _handle(Request req, Response res, RequestStatistic statistic) throws Exception {
+            ParamLong id = new ParamLong(req,res,"id");
+            if (!id.isValid())
+                return null;
+            TSegment segment = serverData.getSegments().getById(id.getValue());
+            if (segment==null){
+                db.createHTTPError(res, ValuesBase.HTTPRequestError, "Не найден сегмент id="+id.getValue());
+                return null;
+                }
+            return segment.getStatistic();
         }};
     RouteWrap apiGetRoads = new RouteWrap() {
         @Override
