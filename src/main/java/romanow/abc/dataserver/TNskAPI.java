@@ -1,7 +1,6 @@
 package romanow.abc.dataserver;
 
 import lombok.Getter;
-import retrofit2.http.GET;
 import romanow.abc.core.ErrorList;
 import romanow.abc.core.UniException;
 import romanow.abc.core.constants.ConstValue;
