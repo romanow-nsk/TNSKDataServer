@@ -20,13 +20,11 @@ import romanow.abc.core.entity.subjectarea.*;
 import romanow.abc.core.mongo.RequestStatistic;
 import romanow.abc.core.prepare.Distantion;
 import romanow.abc.core.prepare.GorTransImport;
-import romanow.abc.core.prepare.WeekCellList;
 import romanow.abc.core.utils.GPSPoint;
 import romanow.abc.core.utils.Pair;
 import spark.Request;
 import spark.Response;
 
-import java.io.IOException;
 import java.util.HashMap;
 
 public class TNskAPI extends APIBase {
@@ -106,7 +104,7 @@ public class TNskAPI extends APIBase {
                 for (GorTransCare care : cares.o2.getMarkers()){
                     TCare tCare = new TCare(true,type,routeName,care,route);
                     Distantion distantion = route.createRoutePoint(tCare,errors,typeMap);
-                    tCare.lastPoint().setRoutePoint(distantion);
+                    tCare.lastPoint().setDistantion(distantion);
                     actualCares.add(tCare);
                     routeActualCares.add(tCare);
                     if (distantion.done){            // Добавить статистику к сегменту
