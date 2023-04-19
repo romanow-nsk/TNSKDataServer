@@ -105,13 +105,14 @@ public class TNskAPI extends APIBase {
                 //System.out.println(cares.o2);
                 cnt+=cares.o2.getMarkers().size();
                 for (GorTransCare care : cares.o2.getMarkers()){
-                    TCare tCare = new TCare(true,type,routeName,care);
+                    TCare tCare = new TCare(true,type,routeName,care,route);
                     Distantion distantion = route.createRoutePoint(tCare,errors,typeMap);
                     tCare.lastPoint().setRoutePoint(distantion);
                     actualCares.add(tCare);
                     routeActualCares.add(tCare);
-                    if (distantion.done)
-                        distantion.getSegment().addSpeedStatistic(tCare);           // Добавить статистику к сегменту
+                    if (distantion.done){            // Добавить статистику к сегменту
+                        route.getSegments().get(distantion.getSegIdx()).getSegment().getRef().addSpeedStatistic(tCare);
+                        }
                     cntRep += serverData.getCareStoryes().put(hours,tCare);
                     }
                 }
