@@ -44,6 +44,7 @@ public class TNskAPI extends APIBase {
         spark.Spark.get("/api/tnsk/cares/actual",apiActualCares);
         spark.Spark.get("/api/tnsk/care/story",apiGetCareStory);
         spark.Spark.get("/api/tnsk/segment/statistic",apiGetSegmentStatistic);
+        spark.Spark.get("/api/tnsk/route",apiGetRoute);
         }
     //--------------------------------------------------------------------------------------------------------
     public void updateStatistic(){
@@ -332,6 +333,19 @@ public class TNskAPI extends APIBase {
                 return null;
                 }
             return segment.getStatistic();
+        }};
+    RouteWrap apiGetRoute = new RouteWrap() {
+        @Override
+        public Object _handle(Request req, Response res, RequestStatistic statistic) throws Exception {
+            ParamLong id = new ParamLong(req,res,"id");
+            if (!id.isValid())
+                return null;
+            TRoute route = serverData.getRoutes().getById(id.getValue());
+            if (route==null){
+                db.createHTTPError(res, ValuesBase.HTTPRequestError, "Не найден маршрут id="+id.getValue());
+                return null;
+                }
+            return route;
         }};
     RouteWrap apiGetRoads = new RouteWrap() {
         @Override
