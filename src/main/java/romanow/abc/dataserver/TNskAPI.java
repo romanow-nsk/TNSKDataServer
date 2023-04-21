@@ -255,6 +255,7 @@ public class TNskAPI extends APIBase {
                 }
             log.addInfo("Остановки сохранены: "+gorTrans.getStops().size());
             db.mongoDB.clearTable(TSegment.class.getSimpleName());
+            db.mongoDB.clearTable(TSegPoint.class.getSimpleName());
             int cnt1=0,cnt2=0, cnt3=0;
             for(TSegment segment : gorTrans.getSegments()){
                 oid = db.mongoDB.add(segment);
