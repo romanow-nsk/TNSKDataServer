@@ -45,6 +45,7 @@ public class TNskAPI extends APIBase {
         spark.Spark.get("/api/tnsk/care/story",apiGetCareStory);
         spark.Spark.get("/api/tnsk/segment/statistic",apiGetSegmentStatistic);
         spark.Spark.get("/api/tnsk/route",apiGetRoute);
+        spark.Spark.get("/api/tnsk/segments",apiGetSegments);
         }
     //--------------------------------------------------------------------------------------------------------
     public void updateStatistic(){
@@ -325,6 +326,10 @@ public class TNskAPI extends APIBase {
     RouteWrap apiGetSegmentStatistic = new RouteWrap() {
         @Override
         public Object _handle(Request req, Response res, RequestStatistic statistic) throws Exception {
+            if (!serverData.isCareScanOn()){
+                db.createHTTPError(res, ValuesBase.HTTPRequestError, "Сканировавание ДО выключено");
+                return null;
+                }
             ParamLong id = new ParamLong(req,res,"id");
             if (!id.isValid())
                 return null;
@@ -338,6 +343,10 @@ public class TNskAPI extends APIBase {
     RouteWrap apiGetRoute = new RouteWrap() {
         @Override
         public Object _handle(Request req, Response res, RequestStatistic statistic) throws Exception {
+            if (!serverData.isCareScanOn()){
+                db.createHTTPError(res, ValuesBase.HTTPRequestError, "Сканировавание ДО выключено");
+                return null;
+                }
             ParamLong id = new ParamLong(req,res,"id");
             if (!id.isValid())
                 return null;
@@ -407,8 +416,15 @@ public class TNskAPI extends APIBase {
                 return null;
             return serverData.getNearestCares((GPSPoint) dbReq.getValue(), dist.getValue());
         }};
-
-
+    RouteWrap apiGetSegments = new RouteWrap() {
+        @Override
+        public Object _handle(Request req, Response res, RequestStatistic statistic) throws Exception {
+            if (!serverData.isCareScanOn()){
+                db.createHTTPError(res, ValuesBase.HTTPRequestError, "Сканировавание ДО выключено");
+                return null;
+                }
+            return serverData.getSegments();
+            }};
     /*
     RouteWrap apiStateChange = new RouteWrap() {
         @Override
